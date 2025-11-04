@@ -1,6 +1,7 @@
 
 import os
 import streamlit as st
+from dotenv import load_dotenv
 from langchain_community.document_loaders import PyPDFLoader, TextLoader
 from langchain_community.vectorstores import FAISS
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
@@ -9,6 +10,10 @@ from langchain_classic.memory import ConversationBufferMemory
 from langchain_classic.callbacks.base import BaseCallbackHandler
 from langchain_classic.schema import Document
 from langchain_community.tools.tavily_search import TavilySearchResults
+from langchain.chat_models import init_chat_model
+
+# Load environment variables
+load_dotenv()
 
 # ========================
 # STREAMING HANDLER
@@ -41,15 +46,16 @@ MODEL_PROVIDER = os.getenv("MODEL_PROVIDER", "openai")
 TEMPERATURE = float(os.getenv("TEMPERATURE", "0.3"))
 NUMBER_OF_RETRIEVAL = int(os.getenv("NUMBER_OF_RETRIEVAL", "3"))
 NUMBER_OF_SEARCH = int(os.getenv("NUMBER_OF_SEARCH", "3"))
+print(OPENAI_API_KEY)
 
 # ========================
 # HELPERS
 # ========================
 
-def load_document(file):
+def load_document(file,file_path):
     """Load a PDF or text file with page metadata preserved."""
     if file.name.endswith(".pdf"):
-        loader = PyPDFLoader(file.name)
+        loader = PyPDFLoader(file_path)
         pages = loader.load_and_split()
         docs = []
         for i, page in enumerate(pages):
@@ -125,11 +131,15 @@ if "history" not in st.session_state:
 vectordb = None
 if uploaded_file and OPENAI_API_KEY:
     with st.spinner("Processing document..."):
-        # Save uploaded file temporarily
-        with open(uploaded_file.name, "wb") as f:
+        upload_dir = "uploads"
+        os.makedirs(upload_dir, exist_ok=True)
+
+        # Save uploaded file to uploads folder
+        file_path = os.path.join(upload_dir, uploaded_file.name)
+        with open(file_path, "wb") as f:
             f.write(uploaded_file.getbuffer())
 
-        docs = load_document(uploaded_file)
+        docs = load_document(uploaded_file,file_path)
         vectordb = get_vectorstore(docs)
 
     st.success("✅ Document processed! Start chatting below.")
@@ -187,7 +197,7 @@ if user_query:
             # )
 
             llm = init_chat_model(
-                model_name=MODEL_NAME,
+                model=MODEL_NAME,
                 model_provider=MODEL_PROVIDER,
                 temperature=TEMPERATURE,
                 streaming=True,
